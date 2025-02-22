@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.ty.model.CurrencyConversionRequest;
@@ -16,26 +17,34 @@ public class CurrencyService {
 
 	public Map<String, Object> getExchangeRates(String base) {
 		String url = API_URL + base;
-		return restTemplate.getForObject(url, Map.class);
+
+		try {
+			return restTemplate.getForObject(url, Map.class);
+		} catch (RestClientException e) {
+			throw new RuntimeException("Error fetching exchange rates. API might be down.");
+		}
 	}
 
 	public Map<String, Object> convertCurrency(CurrencyConversionRequest request) {
 		Map<String, Object> rates = getExchangeRates(request.getFrom());
+
 		if (rates == null || !rates.containsKey("rates")) {
-			throw new IllegalArgumentException("Invalid base currency");
+			throw new IllegalArgumentException("Invalid base currency: " + request.getFrom());
 		}
+
 		Map<String, Double> rateMap = (Map<String, Double>) rates.get("rates");
+
 		if (!rateMap.containsKey(request.getTo())) {
-			throw new IllegalArgumentException("Invalid target currency");
+			throw new IllegalArgumentException("Invalid target currency: " + request.getTo());
 		}
-		
-         double conversionRate = rateMap.get(request.getTo());
 
-		 double convertedAmount = request.getAmount() * conversionRate;
-		 
-		 BigDecimal roundedAmount = new BigDecimal(convertedAmount).setScale(2, RoundingMode.HALF_UP);
+		double conversionRate = rateMap.get(request.getTo());
+		double convertedAmount = request.getAmount() * conversionRate;
+
+		// ✅ Ensure response format matches challenge requirements
+		BigDecimal roundedAmount = new BigDecimal(convertedAmount).setScale(2, RoundingMode.HALF_UP);
+
 		return Map.of("from", request.getFrom(), "to", request.getTo(), "amount", request.getAmount(),
-				"convertedAmount",roundedAmount.doubleValue() );
+				"convertedAmount", roundedAmount.doubleValue());
 	}
-
 }
